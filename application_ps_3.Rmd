@@ -1,0 +1,490 @@
+---
+title: "Problem Set Appication 3"
+author: "Sabrina Li"
+date: "28/05/2021"
+output: 
+  pdf_document:
+    number_sections: yes
+  html_document:
+    df_print: paged
+urlcolor: blue
+---
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(lubridate)
+Sys.setlocale(locale = 'USA')
+```
+
+<!-- .Rmd files use  markdown, a text mark up language, to provide formating.--> 
+<!--Text include within these strange arrows are comments and will not show up when you knit-->
+
+# Front matter
+This submission is my work alone and complies with the 30535 integrity policy.
+
+Add your initials to indicate your agreement: **__**
+
+Add your collaborators: **__**
+
+Late coins used this pset: 0. Late coins left: X. 
+<!--You may use up to two for a given assignment.)-->
+
+# Problems
+
+## Load the data and first glimpse
+
+
+
+### 1
+```{r}
+df = read.csv('gun-violence-data_01-2013_03-2018.csv')
+
+dim(df)
+```
+
+
+### 2
+
+
+for each recored, we have location, number and background of participants, the guns useed, and the result.
+```{r}
+
+```
+
+### 3
+
+```{r}
+colnames(df)[20: 26]
+```
+
+
+## Time ralated trends of gun violence
+
+
+### 1
+
+```{r}
+df$date = ymd(df$date)
+```
+
+
+### 2
+
+```{r}
+df$date_extr = df$date %>% str_extract(., '[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}')
+df$date_d = ymd(df$date_extr)
+
+df$year = df$date_d %>% year()
+
+df %>% filter(year %>% is.na() == F) %>% group_by(year) %>%
+  summarise(count = n()) %>% ggplot(aes(x = year, y = count)) +
+  geom_line() +  geom_text(aes(label = count), 
+                           vjust = "inward", hjust = "inward") + 
+  labs(title = 'time series: number of incidents' )
+
+```
+
+
+Yes, for year 2018, we only have data of 3 months.
+
+### 3
+
+```{r}
+df$month = df$date_d %>% month() 
+
+df %>% group_by(year) %>% summarise(n_distinct(month))
+
+df %>% filter(month %>% is.na() == F & year < 2018)  %>% ggplot(aes(x = factor(month))) +
+  geom_bar() +  geom_text(stat='count', aes(label=..count..), vjust=-0.5) +  labs(title = ' number of incidents by months' , x = 'month')
+
+```
+Summer time, i.e, July and August, there are more cases, but it is not very siginificant.
+
+
+
+### 4
+
+```{r}
+df$weekday = df$date_d %>% weekdays() 
+
+
+df %>% filter(weekday %>% is.na() == F & year < 2018)  %>% ggplot(aes(x = factor(weekday))) +
+  geom_bar() +  geom_text(stat='count', aes(label=..count..), vjust=-0.5) +  labs(title = ' number of incidents by weekdays' , x = 'weekday')
+
+
+```
+
+
+Sunday has most cases.
+
+
+### 5
+
+
+the number of incidents increasing by year, comparing to other months, July and August have more incidents, and for weekdays, Sunday has more cases, and Thursday has the least ones.
+
+
+
+## Characteristics of Gun violence incidents
+
+### 1
+
+```{r}
+df$n_guns_involved %>% mean(na.rm =T)
+```
+This is the average number of guns involved. We have not consider the NA value.
+
+```{r}
+df$n_guns_involved ->ng
+ng[ng %>% is.na()] = 0
+mean(ng)
+```
+If NA means 0, the figure is above.
+
+
+### 2
+
+
+```{r}
+df$gun_type[df$gun_type %in% c("", "0::Unknown") == F] -> guntypes
+
+(guntypes %>% str_split('\\|\\|', simplify = T) %>% str_split('::', simplify = T))[,2] -> gun_types
+
+gun_types[gun_types %in% c("", 'Unknown') ==F] -> gun_types
+
+data.frame(types = gun_types) %>% ggplot(aes(y =types)) + geom_bar() + labs(title = 'gun types count')
+
+
+```
+
+
+
+Handguns are most used.
+
+
+### 3
+
+It is just the characteristics of an incident, an incident coudl have multiple attributes.
+
+
+### 4
+
+```{r}
+df$incident_characteristics %>% str_split('\\|', simplify = F) -> incd_char
+incd_char %>% unlist() -> incd_char
+
+ind_df = data.frame(types = incd_char[incd_char != ''] ) %>% group_by(types) %>% summarise(count = n()) %>% arrange(desc(count)) %>% head(20)
+ind_df %>% 
+  ggplot(., aes(y=types, x=count))+
+  geom_bar(stat='identity') + labs(title = 'incident_characteristics', subtitle = '20 most common')
+
+
+```
+
+
+## Suspects Characteristics
+
+
+### 1
+
+There were often more than one people involved in the cases, and their identitis are keys and for each variables they have different values.
+
+
+
+### 2
+
+
+```{r}
+df$participant_type %>% str_split('\\|',simplify = F) -> part_types
+
+
+count_vic = map(part_types, function(x){
+  
+  nv = x %>% str_extract_all('Victim') %>% unlist() %>% length()
+  
+  return(nv)
+  
+  
+})
+
+
+count_vic %>% unlist() %>% mean() # the numebr of vicitms
+
+
+
+count_susp = map(part_types, function(x){
+  
+  ns = x %>% str_extract_all('Suspect') %>% unlist() %>% length()
+  
+  return(ns)
+  
+  
+})
+
+count_susp %>% unlist() %>% mean() # the number of suspects
+```
+
+
+The average number we have are listed above.
+
+
+
+### 3
+
+```{r}
+df %>% select(incident_id,
+              participant_age, participant_gender) -> sub_df
+head(sub_df)
+
+```
+
+
+
+### 4
+
+```{r}
+sub_df$nest_age = sub_df$participant_age %>% str_split('\\|\\|', simplify= F)
+tmp = sub_df %>% unnest(c(nest_age)) 
+tmp$nest_age %>% str_split("::", simplify = T) -> tmp_age
+
+summary(tmp_age[,2] %>% as.numeric())
+
+
+
+data.frame(age = tmp_age[,2] %>% as.numeric()) %>% ggplot(aes(age)) + geom_density() + labs(title = 'distirbution of age')
+
+```
+
+we do have records in which  ages larger than 100 are contained.
+
+
+### 5
+
+
+```{r}
+sub_df$nest_gender = sub_df$participant_gender %>% str_split('\\|\\|', simplify= F)
+tmp = sub_df %>% unnest(c(nest_gender)) 
+tmp$nest_gender %>% str_split("::", simplify = T) -> tmp_gender
+
+gender_dt = tmp_gender[,2] 
+gender_dt[gender_dt %in% c('Male', 'Female') ] %>% table() %>% prop.table()
+
+```
+
+over 87 percentages are males.
+
+
+### 6
+
+
+```{r}
+df$participant_status %>% str_split('\\|',simplify = F) -> part_status
+
+
+part_status %>% unlist() %>% unique() %>% str_extract('[a-zA-Z]+') %>% setdiff(NA)
+
+
+```
+There are four.
+
+
+
+
+### 7
+
+```{r}
+count_arrest = map(part_status, function(x){
+  
+  ns = x %>% str_extract_all('Arrested') %>% unlist() %>% length()
+  
+  return(ns)
+  
+  
+}) %>% unlist() %>% sum() -> n_arrest
+
+count_susp %>% unlist() %>% sum() -> n_susp
+
+n_arrest / n_susp
+```
+
+49.85% were arrested.
+
+## Geographic variation
+
+
+### 1
+
+```{r}
+library(tidycensus)
+census_api_key("f51cd09bd6d0f8cdc620d3c64a5f7893c2efebe1")
+options(tigris_use_cache = TRUE)
+pop_df <- get_acs(geography = "state", 
+                  variables = "B01003_001", 
+                  year = 2017,
+                  geometry = TRUE) 
+
+df17 = df[df$year == 2017,]
+
+df17 %>% ggplot(aes(y = state)) + geom_bar() + labs(title = 'case number in 2017')
+
+```
+
+Illinois has it.
+
+### 2
+
+
+```{r}
+count17 = df17 %>% group_by(state) %>% summarise(count = n()) 
+colnames(count17)[1] = 'NAME'
+map_df = left_join( pop_df,count17)
+map_df$density = map_df$count / map_df$estimate
+
+
+map_df %>% ggplot(aes(y = NAME, x = density)) + geom_bar(stat = 'identity')+ labs(title = 'case rate in 2017')
+
+```
+
+
+District of Columbia has it.
+
+### 3
+
+
+```{r}
+map_df  %>% ggplot(aes(fill = density)) +
+  geom_sf() +
+  labs(title = "incident rate  by state",
+       caption = "Year 2017")
+```
+
+
+
+## Mass shootings
+
+
+### 1
+
+```{r}
+df$participant_type %>% str_split('\\|',simplify = F) -> part_types
+
+count_vic = map(part_types, function(x){
+  
+  nv = x %>% str_extract_all('Victim') %>% unlist() %>% length()
+  
+  return(nv)
+  
+  
+})
+df$count_vic = count_vic %>% unlist() 
+df %>% arrange(count_vic) %>% tail(15) ->id15
+```
+
+
+### 2
+
+```{r}
+id15 %>% ggplot(aes(longitude, latitude)) +
+  borders("state") +
+  geom_point(aes(size =count_vic )) +
+  coord_quickmap() +
+  labs(title = 'top 15 incidents by number of victims')
+
+```
+
+
+### 3
+
+
+
+```{r}
+id15$nest_age = id15$participant_age %>% str_split('\\|\\|', simplify= F)
+tmp = id15 %>% unnest(c(nest_age)) 
+tmp$nest_age %>% str_split("::", simplify = T) -> tmp_age
+
+summary(tmp_age[,2] %>% as.numeric())
+
+
+
+data.frame(age = tmp_age[,2] %>% as.numeric()) %>% ggplot(aes(age)) + geom_density() + labs(title = 'distirbution of age')
+
+```
+
+The ages that in mass shooting cases are younger.
+
+
+```{r}
+id15$nest_gender = id15$participant_gender %>% str_split('\\|\\|', simplify= F)
+tmp = id15 %>% unnest(c(nest_gender)) 
+tmp$nest_gender %>% str_split("::", simplify = T) -> tmp_gender
+
+gender_dt = tmp_gender[,2] 
+gender_dt[gender_dt %in% c('Male', 'Female') ] %>% table() %>% prop.table()
+
+
+```
+
+The proportion of males is less.
+
+
+```{r}
+id15$participant_status %>% str_split('\\|',simplify = F) -> part_status
+
+
+part_status %>% unlist() %>% unique() %>% str_extract('[a-zA-Z]+') %>% setdiff(NA)
+
+
+
+
+id15$participant_type %>% str_split('\\|',simplify = F) -> part_types
+
+
+count_vic = map(part_types, function(x){
+  
+  nv = x %>% str_extract_all('Victim') %>% unlist() %>% length()
+  
+  return(nv)
+  
+  
+})
+
+
+count_vic %>% unlist() %>% mean()
+
+
+
+count_susp = map(part_types, function(x){
+  
+  ns = x %>% str_extract_all('Suspect') %>% unlist() %>% length()
+  
+  return(ns)
+  
+  
+})
+
+count_susp %>% unlist() %>% mean()
+
+```
+The number of people involved in mass shootings are much more.
+
+
+```{r}
+count_susp %>% unlist() %>% sum() -> n_susp
+
+
+
+id15$participant_status %>% str_split('\\|',simplify = F) -> part_status
+count_arrest = map(part_status, function(x){
+  
+  ns = x %>% str_extract_all('Arrested') %>% unlist() %>% length()
+  
+  return(ns)
+  
+  
+}) %>% unlist() %>% sum() -> n_arrest
+
+n_arrest / n_susp
+```
+The arrest rate in such cases are higher.
+
+
+
